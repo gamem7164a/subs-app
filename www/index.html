@@ -642,9 +642,13 @@
     });
   }
 
+  var engineErr = '', lastLog = '';
   function getWorker() {
     if (ocrWorker) return Promise.resolve(ocrWorker);
     setProgress(0.03, '인식 엔진을 준비하는 중이에요. 처음 한 번만 오래 걸려요.');
+    var wd = setTimeout(function () {
+      if (!ocrWorker) setShotStatus('엔진 준비가 90초 넘게 걸려요. 마지막 상태: ' + (engineErr || lastLog || '응답 없음'), 'error');
+    }, 90000);
     var ready = window.Tesseract ? Promise.resolve() : loadScript('vendor/tesseract.min.js');
     return ready.then(function () {
       return window.Tesseract.createWorker(['kor', 'eng'], 1, {
@@ -652,12 +656,14 @@
         corePath: absUrl('vendor/core'),
         langPath: absUrl('vendor/lang'),
         gzip: true,
+        errorHandler: function (e) { engineErr = String(e && e.message || e); },
         logger: function (m) {
           if (!m || typeof m.progress !== 'number') return;
           if (m.status === 'recognizing text') setProgress(stageBase + stageSpan * m.progress, stageText);
+          else { lastLog = m.status + ' ' + Math.round(m.progress * 100) + '%'; setProgress(0.03 + 0.1 * m.progress, '인식 엔진 준비 중: ' + lastLog); }
         }
       });
-    }).then(function (w) { ocrWorker = w; return w; });
+    }).then(function (w) { clearTimeout(wd); ocrWorker = w; return w; }, function (e) { clearTimeout(wd); throw new Error((engineErr || (e && e.message) || e) + ''); });
   }
 
   // 이미지를 흑백으로 만들고, 어두운 화면(다크 모드)은 색을 뒤집어 읽기 쉽게 만든다.
@@ -798,6 +804,7 @@
       var msg = '인식 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
       if (e && e.message === 'image_load') msg = '이미지를 열 수 없었어요. 다른 스크린샷으로 시도해 주세요.';
       else if (e && e.message === 'script_load') msg = '인식 엔진을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.';
+      if (msg.indexOf('문제가 생겼어요') !== -1) msg += ' (원인: ' + String(e && e.message || e).slice(0, 160) + ')';
       setShotStatus(msg, 'error');
     }).then(function () {
       ocrBusy = false;
