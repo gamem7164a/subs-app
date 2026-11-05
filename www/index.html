@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#534AB7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="내 구독">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>내 구독</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --purple-50:#EEEDFE; --purple-600:#534AB7; --purple-800:#3C3489; --purple-900:#26215C;
+    --coral-50:#FAECE7; --coral-600:#993C1D;
+    --green-50:#EAF3DE; --green-600:#3B6D11;
+    --blue-50:#E6F1FB; --blue-600:#185FA5;
+    --amber-50:#FAEEDA; --amber-600:#854F0B; --amber-800:#633806;
+    --red-50:#FCEBEB; --red-600:#A32D2D;
+    --bg:#F6F5F1; --card:#FFFFFF; --border:rgba(0,0,0,0.1); --border-strong:rgba(0,0,0,0.18);
+    --text-primary:#1C1C1A; --text-secondary:#5F5E5A; --text-muted:#888780;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#1B1B19; --card:#242422; --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
+      --text-primary:#F1EFE8; --text-secondary:#B4B2A9; --text-muted:#888780;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#1B1B19; --card:#242422; --border:rgba(255,255,255,0.12); --border-strong:rgba(255,255,255,0.22);
+    --text-primary:#F1EFE8; --text-secondary:#B4B2A9; --text-muted:#888780;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); height:100%; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin:0; height:100%; background:var(--bg); color:var(--text-primary); overflow-x:hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif;
+  }
+  .app { max-width:460px; margin:0 auto; min-height:100%; display:flex; flex-direction:column; position:relative; }
+  .topbar {
+    padding: calc(0.9rem + env(safe-area-inset-top, 0px)) 1.1rem 0.8rem;
+    display:flex; align-items:center; justify-content:space-between;
+    position: sticky; top:0; background:var(--bg); z-index:5;
+  }
+  .topbar h1 { font-size:18px; font-weight:600; margin:0; }
+  .topbar i { font-size:19px; color:var(--text-secondary); }
+
+  .screen { flex:1; padding: 0 1.1rem calc(90px + env(safe-area-inset-bottom, 0px)); display:none; }
+  .screen.active { display:block; }
+
+  .total-card {
+    background: var(--purple-50); border-radius:16px; padding:1.1rem 1.25rem; margin-bottom:0.9rem;
+  }
+  .total-card p.label { font-size:12px; color:var(--purple-600); margin:0 0 4px; }
+  .total-card p.value { font-size:26px; font-weight:700; color:var(--purple-900); margin:0; }
+  .total-card p.count { font-size:12px; color:var(--purple-600); margin:6px 0 0; }
+
+  .alert {
+    display:flex; gap:10px; align-items:flex-start; background:var(--amber-50);
+    border-radius:12px; padding:0.8rem 0.9rem; margin-bottom:0.6rem;
+  }
+  .alert i { color: var(--amber-600); font-size:16px; margin-top:2px; flex:none; }
+  .alert p { margin:0; font-size:13px; color:var(--amber-800); }
+  .alert p.sub { color:var(--text-secondary); margin-top:2px; }
+
+  .section-title { font-size:13px; color:var(--text-muted); margin: 1.1rem 0 0.5rem; }
+
+  .sub-item {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0.7rem 0.9rem; margin-bottom:8px;
+  }
+  .sub-left { display:flex; align-items:center; gap:10px; min-width:0; }
+  .badge {
+    width:32px; height:32px; border-radius:9px; flex:none; display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700;
+  }
+  .sub-name { font-size:14px; font-weight:500; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sub-meta { font-size:11.5px; color:var(--text-muted); margin:2px 0 0; }
+  .sub-meta.soon { color:var(--red-600); font-weight:500; }
+  .sub-right { display:flex; align-items:center; gap:8px; flex:none; }
+  .sub-price { font-size:13.5px; font-weight:500; white-space:nowrap; }
+  .del-btn { border:none; background:none; color:var(--text-muted); cursor:pointer; padding:4px; display:inline-flex; align-items:center; }
+  .del-btn:active { color:var(--red-600); }
+
+  .empty { text-align:center; padding:2rem 0; color:var(--text-muted); font-size:13px; }
+
+  /* 추가 탭 */
+  .field { margin-bottom:12px; }
+  .import-box { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0.9rem; margin-bottom:1.1rem; }
+  .import-box textarea {
+    width:100%; min-height:90px; border-radius:9px; border:1px solid var(--border-strong);
+    background:var(--bg); color:var(--text-primary); font-size:13px; padding:8px 10px; font-family:inherit; resize:vertical;
+  }
+  .import-box textarea:focus { outline:none; border-color:var(--purple-600); }
+  .import-box .hint { font-size:11.5px; color:var(--text-muted); margin:6px 0 10px; line-height:1.5; }
+  .import-btn {
+    width:100%; height:40px; border-radius:9px; border:1px solid var(--purple-600); background:none; color:var(--purple-600);
+    font-size:13.5px; font-weight:500; cursor:pointer;
+  }
+  .import-result { font-size:12.5px; margin-top:8px; color:var(--green-600); display:none; }
+
+  .shot-box { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0.9rem; margin-bottom:1.1rem; }
+  .shot-box .hint { font-size:11.5px; color:var(--text-muted); margin:6px 0 10px; line-height:1.5; }
+  .shot-picker {
+    position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
+    border:1px dashed var(--border-strong); border-radius:12px; padding:1.2rem; cursor:pointer; margin-bottom:10px;
+  }
+  .shot-picker input[type="file"] {
+    position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; font-size:0;
+  }
+  .shot-picker i { font-size:22px; color:var(--text-muted); }
+  .shot-picker span { font-size:12.5px; color:var(--text-secondary); }
+  .shot-preview { display:none; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+  .shot-preview img { width:70px; height:70px; object-fit:cover; border-radius:10px; border:1px solid var(--border); }
+  .shot-btn {
+    width:100%; height:40px; border-radius:9px; border:none; background:var(--purple-600); color:#fff;
+    font-size:13.5px; font-weight:500; cursor:pointer;
+  }
+  .shot-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .shot-status { font-size:12.5px; margin-top:8px; display:none; }
+  .preset-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:1rem; }
+  .preset-btn {
+    display:flex; flex-direction:column; align-items:center; gap:6px; padding:0.7rem 0.4rem;
+    background:var(--card); border:1px solid var(--border); border-radius:12px; cursor:pointer; font-family:inherit;
+  }
+  .preset-btn.selected { border-color:var(--purple-600); background:var(--purple-50); }
+  .preset-btn .p-badge {
+    width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; flex:none;
+  }
+  .preset-btn .p-name { font-size:11.5px; color:var(--text-secondary); text-align:center; line-height:1.3; }
+  .preset-btn.selected .p-name { color:var(--purple-800); font-weight:500; }
+  .field label { font-size:12px; color:var(--text-muted); display:block; margin-bottom:5px; }
+  .field input, .field select {
+    width:100%; height:42px; border-radius:10px; border:1px solid var(--border-strong);
+    background:var(--card); color:var(--text-primary); font-size:14px; padding:0 12px; font-family:inherit;
+  }
+  .field input:focus, .field select:focus { outline:none; border-color:var(--purple-600); }
+  .row2 { display:flex; gap:8px; }
+  .row2 > * { flex:1; min-width:0; }
+  .checkrow { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); margin-bottom:16px; }
+  .err { color:var(--red-600); font-size:12px; margin: -6px 0 10px; display:none; }
+  .submit-btn {
+    width:100%; height:46px; border-radius:12px; border:none; background:var(--purple-600); color:#fff;
+    font-size:15px; font-weight:600; cursor:pointer;
+  }
+  .submit-btn:active { transform: scale(0.98); }
+
+  /* 분석 탭 */
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:1rem; }
+  .stat-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0.9rem; }
+  .stat-card p.label { font-size:11.5px; color:var(--text-muted); margin:0 0 4px; }
+  .stat-card p.value { font-size:18px; font-weight:600; margin:0; }
+  .cat-row { margin-bottom:10px; }
+  .cat-row .top { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
+  .cat-row .track { height:8px; border-radius:4px; background:var(--border); overflow:hidden; }
+  .cat-row .fill { height:100%; border-radius:4px; }
+
+  /* 설정 탭 */
+  .setting-item {
+    display:flex; align-items:center; justify-content:space-between; background:var(--card);
+    border:1px solid var(--border); border-radius:12px; padding:0.85rem 1rem; margin-bottom:8px; font-size:13.5px;
+  }
+  .setting-item button { border:none; background:none; color:var(--red-600); font-size:13px; cursor:pointer; }
+
+  /* 하단 탭바 */
+  .tabbar {
+    position:fixed; bottom:0; left:0; right:0; max-width:460px; margin:0 auto;
+    background:var(--card); border-top:1px solid var(--border);
+    padding: 8px 4px calc(8px + env(safe-area-inset-bottom, 0px));
+    display:flex; z-index:10;
+  }
+  .tab-btn {
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none;
+    color:var(--text-muted); font-size:11px; font-family:inherit; cursor:pointer; padding:4px 0;
+  }
+  .tab-btn i { font-size:20px; }
+  .tab-btn.active { color:var(--purple-600); }
+  i.ti { display:inline-flex; align-items:center; justify-content:center; font-style:normal; line-height:1; }
+  i.ti svg { width:1em; height:1em; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  [hidden] { display:none !important; }
+  .progress { margin-top:10px; }
+  .progress .bar { height:6px; border-radius:3px; background:var(--border); overflow:hidden; }
+  .progress .bar > div { height:100%; width:0%; background:var(--purple-600); transition:width .25s ease; }
+  .progress p { font-size:12px; color:var(--text-secondary); margin:6px 0 0; }
+
+  .review-box { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:0.9rem; margin-bottom:1.1rem; }
+  .review-box .hint { font-size:11.5px; color:var(--text-muted); margin:6px 0 10px; line-height:1.5; }
+  .review-row { display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--border); }
+  .review-row:first-of-type { border-top:none; }
+  .review-row .rv-check { padding-top:11px; }
+  .review-row .rv-check input { width:18px; height:18px; }
+  .review-row .rv-fields { flex:1; min-width:0; }
+  .review-row input[type="text"], .review-row input[type="number"], .review-row input[type="date"] {
+    width:100%; height:38px; border-radius:9px; border:1px solid var(--border-strong);
+    background:var(--bg); color:var(--text-primary); font-size:14px; padding:0 10px; font-family:inherit;
+  }
+  .review-row .rv-sub { display:flex; gap:6px; margin-top:6px; }
+  .review-row .rv-sub .rv-price { flex:0 0 38%; }
+  .review-row .rv-sub .rv-date { flex:1; min-width:0; }
+  .review-row .rv-opts { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:12px; color:var(--text-secondary); }
+  .review-row .rv-opts input { width:auto; height:auto; }
+  .review-row.uncertain .rv-name { border-color:#BA7517; background:var(--amber-50); color:var(--amber-800); }
+  .review-row .rv-warn { margin:4px 0 0; font-size:11.5px; color:var(--amber-600); }
+  .ghost-btn {
+    width:100%; height:40px; border-radius:12px; border:none; background:none; color:var(--text-muted);
+    font-size:13.5px; cursor:pointer; margin-top:6px;
+  }
+  .raw { margin-top:8px; font-size:12px; color:var(--text-muted); }
+  .raw pre { white-space:pre-wrap; word-break:break-all; background:var(--bg); border-radius:8px; padding:8px; margin:6px 0 0; max-height:200px; overflow:auto; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1 id="topbarTitle">내 구독</h1>
+    <i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.168 18.849a4 4 0 0 1 3.832-2.849h4a4 4 0 0 1 3.834 2.855"/></svg></i>
+  </div>
+
+  <!-- 홈 -->
+  <div class="screen active" id="screen-home">
+    <div class="total-card">
+      <p class="label">이번 달 총 구독료</p>
+      <p class="value" id="totalValue">0원</p>
+      <p class="count" id="countValue">등록된 구독 0개</p>
+    </div>
+    <div id="alerts"></div>
+    <div class="section-title">등록된 구독</div>
+    <div id="subList"></div>
+    <div class="empty" id="emptyMsg" style="display:none;">아직 등록된 구독이 없습니다.<br>아래 '추가' 탭에서 등록해보세요.</div>
+  </div>
+
+  <!-- 추가 -->
+  <div class="screen" id="screen-add">
+    <div class="section-title" style="margin-top:0.8rem;">스크린샷으로 자동 등록</div>
+        <div class="shot-box" id="shotBox">
+      <div class="shot-picker" id="shotPicker">
+        <i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h1a2 2 0 0 0 2-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-14a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2"/><circle cx="12" cy="13" r="3"/></svg></i>
+        <span>구글 정기결제 화면 스크린샷 선택하기 (여러 장 가능)</span>
+        <input type="file" id="screenshotInput" accept="image/*" multiple aria-label="스크린샷 선택" />
+      </div>
+      <div class="shot-preview" id="shotPreview"></div>
+      <p class="hint">구글 플레이 앱 &gt; 프로필 &gt; 결제 및 구독 &gt; 구독 화면을 캡처해서 올려주세요. 글자를 이 폰 안에서 읽기 때문에 사진이 밖으로 전송되지 않습니다. 처음 한 번은 인식 엔진(약 16MB)을 내려받느라 시간이 걸립니다.</p>
+      <button type="button" class="shot-btn" id="shotBtn" disabled>스크린샷에서 자동으로 인식하기</button>
+      <div class="progress" id="shotProgress" hidden>
+        <div class="bar"><div id="shotBar"></div></div>
+        <p id="shotProgressText"></p>
+      </div>
+      <p class="shot-status" id="shotStatus"></p>
+    </div>
+
+    <div class="review-box" id="reviewBox" hidden>
+      <div class="section-title" style="margin-top:0;">인식 결과 확인 <span id="reviewCount"></span></div>
+      <p class="hint" style="margin-top:0;">이름이나 금액이 틀렸다면 고쳐서 등록하세요. 노란 표시는 이름을 다시 확인해 달라는 뜻입니다.</p>
+      <div id="reviewList"></div>
+      <button type="button" class="submit-btn" id="reviewAddBtn">선택한 항목 등록하기</button>
+      <button type="button" class="ghost-btn" id="reviewCancelBtn">취소</button>
+      <details class="raw"><summary>인식한 원문 보기</summary><pre id="ocrRaw"></pre></details>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">여러 개 한 번에 붙여넣기</div>
+    <div class="import-box">
+      <textarea id="importText" placeholder="구글 플레이 '구독' 목록이나 카드 명세서를 복사해서 여기에 붙여넣으세요.&#10;예)&#10;넷플릭스 17,000원&#10;유튜브 프리미엄 14,900원"></textarea>
+      <p class="hint">한 줄에 서비스 이름과 금액이 같이 있으면 자동으로 인식합니다. 결제일은 오늘 기준으로 임시 등록되니, 나중에 홈 화면에서 개별 수정해 주세요.</p>
+      <button type="button" class="import-btn" id="importBtn">붙여넣은 내용에서 자동으로 가져오기</button>
+      <p class="import-result" id="importResult"></p>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">인기 서비스로 빠르게 추가</div>
+    <div class="preset-grid" id="presetGrid"></div>
+    <div class="section-title" style="margin-top:0;">직접 입력</div>
+    <div class="field">
+      <label>서비스 이름</label>
+      <input type="text" id="fName" placeholder="예: 넷플릭스" />
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>월 요금(원)</label>
+        <input type="number" id="fPrice" placeholder="예: 17000" min="0" step="100" />
+      </div>
+      <div class="field">
+        <label>카테고리</label>
+        <select id="fCategory">
+          <option value="ott">OTT</option>
+          <option value="music">음악</option>
+          <option value="productivity">생산성</option>
+          <option value="etc">기타</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>다음 결제일</label>
+      <input type="date" id="fDate" />
+    </div>
+    <label class="checkrow"><input type="checkbox" id="fTrial" style="width:auto;height:auto;" /> 무료체험 중이에요</label>
+    <div class="err" id="formErr"></div>
+    <button type="button" class="submit-btn" id="submitBtn">구독 추가하기</button>
+  </div>
+
+  <!-- 분석 -->
+  <div class="screen" id="screen-analytics">
+    <div class="section-title" style="margin-top:0.8rem;">요약</div>
+    <div class="stat-grid">
+      <div class="stat-card"><p class="label">이번 달 총액</p><p class="value" id="anTotal">0원</p></div>
+      <div class="stat-card"><p class="label">연간 예상 지출</p><p class="value" id="anYear">0원</p></div>
+      <div class="stat-card"><p class="label">가장 비싼 구독</p><p class="value" id="anMax">-</p></div>
+      <div class="stat-card"><p class="label">평균 구독료</p><p class="value" id="anAvg">0원</p></div>
+    </div>
+    <div class="section-title">카테고리별 지출</div>
+    <div id="catBreakdown"></div>
+  </div>
+
+  <!-- 설정 -->
+  <div class="screen" id="screen-settings">
+    <div class="section-title" style="margin-top:0.8rem;">데이터</div>
+    <div class="setting-item">
+      <span>이 기기에 저장된 구독 데이터</span>
+      <button id="resetBtn">전체 초기화</button>
+    </div>
+    <div class="section-title">안내</div>
+    <div class="setting-item" style="display:block;">
+      <p style="margin:0 0 6px; color:var(--text-secondary);">입력한 구독 정보와 스크린샷은 이 기기 밖으로 나가지 않으며, 다른 기기와는 공유되지 않습니다.</p>
+      <p style="margin:0; color:var(--text-secondary);">홈 화면에 추가하면 앱처럼 아이콘으로 실행할 수 있습니다.</p>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-screen="home"><i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l-2 0l9-9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/><path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"/></svg></i>홈</button>
+    <button class="tab-btn" data-screen="add"><i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 12h6"/><path d="M12 9v6"/></svg></i>추가</button>
+    <button class="tab-btn" data-screen="analytics"><i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/><path d="M9 9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/><path d="M15 5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1z"/><path d="M4 20l14 0"/></svg></i>분석</button>
+    <button class="tab-btn" data-screen="settings"><i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37c1 .608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg></i>설정</button>
+  </div>
+</div>
+
+<script src="parser.js"></script>
+<script>
+(function () {
+  var STORAGE_KEY = 'subs_app_v1';
+  var CATS = {
+    ott: { label: 'OTT', color: '#D85A30', bg: 'var(--coral-50)', text: 'var(--coral-600)' },
+    music: { label: '음악', color: '#639922', bg: 'var(--green-50)', text: 'var(--green-600)' },
+    productivity: { label: '생산성', color: '#378ADD', bg: 'var(--blue-50)', text: 'var(--blue-600)' },
+    etc: { label: '기타', color: '#7F77DD', bg: 'var(--purple-50)', text: 'var(--purple-600)' }
+  };
+  var TITLES = { home: '내 구독', add: '구독 추가', analytics: '분석', settings: '설정' };
+  var PRESETS = [
+    { name: '넷플릭스', price: 17000, category: 'ott', initial: 'N' },
+    { name: '유튜브 프리미엄', price: 14900, category: 'ott', initial: 'Y' },
+    { name: '디즈니플러스', price: 9900, category: 'ott', initial: 'D' },
+    { name: '왓챠', price: 7900, category: 'ott', initial: 'W' },
+    { name: '스포티파이', price: 6700, category: 'music', initial: 'S' },
+    { name: '멜론', price: 10900, category: 'music', initial: 'M' },
+    { name: '애플뮤직', price: 8900, category: 'music', initial: 'A' },
+    { name: '노션', price: 8000, category: 'productivity', initial: 'N' },
+    { name: '쿠팡 와우', price: 7890, category: 'etc', initial: 'C' }
+  ];
+
+  function loadSubs() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+  function saveSubs(subs) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(subs)); } catch (e) { console.error('저장 실패', e); }
+  }
+
+  var subs = loadSubs();
+
+  function fmtWon(n) { return Math.round(n).toLocaleString('ko-KR') + '원'; }
+  function daysUntil(dateStr) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var target = new Date(dateStr); target.setHours(0,0,0,0);
+    return Math.round((target - today) / 86400000);
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function addOneMonth(dateStr) {
+    var d = new Date(dateStr + 'T00:00:00');
+    var day = d.getDate();
+    d.setMonth(d.getMonth() + 1);
+    if (d.getDate() !== day) {
+      // 예: 1월 31일 + 1달처럼 그 달에 없는 날짜면 해당 달의 말일로 보정
+      d.setDate(0);
+    }
+    return d.toISOString().slice(0, 10);
+  }
+
+  // 결제일이 지난 구독은 자동으로 다음 달 결제일로 갱신한다.
+  // 무료체험 구독은 체험 종료일이 지나면 일반 결제로 전환된다.
+  function normalizeSubs(list) {
+    var changed = false;
+    list.forEach(function (s) {
+      var guard = 0;
+      while (daysUntil(s.date) < 0 && guard < 60) {
+        if (s.trial) { s.trial = false; }
+        s.date = addOneMonth(s.date);
+        changed = true;
+        guard++;
+      }
+    });
+    return changed;
+  }
+
+  var confirmingId = null;
+
+  function renderHome() {
+    var total = subs.reduce(function (s, x) { return s + (Number(x.price) || 0); }, 0);
+    document.getElementById('totalValue').textContent = fmtWon(total);
+    document.getElementById('countValue').textContent = '등록된 구독 ' + subs.length + '개';
+
+    var alertsEl = document.getElementById('alerts');
+    alertsEl.innerHTML = '';
+    subs.forEach(function (s) {
+      var d = daysUntil(s.date);
+      if (s.trial && d <= 5 && d >= 0) {
+        var div = document.createElement('div'); div.className = 'alert';
+        div.innerHTML = '<i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636-2.87l-8.106-13.536a1.914 1.914 0 0 0-3.274 0z"/><path d="M12 16h.01"/></svg></i><div><p>' + escapeHtml(s.name) + ' 무료체험이 ' + (d === 0 ? '오늘' : d + '일 후') + ' 끝나요.</p><p class="sub">해지하지 않으면 ' + fmtWon(s.price) + '이 자동 결제됩니다.</p></div>';
+        alertsEl.appendChild(div);
+      } else if (!s.trial && d <= 3 && d >= 0) {
+        var div2 = document.createElement('div'); div2.className = 'alert';
+        div2.innerHTML = '<i class="ti" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-12a2 2 0 0 1-2-2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M8 15h2v2h-2z"/></svg></i><div><p>' + escapeHtml(s.name) + ' 결제가 ' + (d === 0 ? '오늘' : d + '일 후') + ' 예정이에요.</p><p class="sub">' + fmtWon(s.price) + '</p></div>';
+        alertsEl.appendChild(div2);
+      }
+    });
+
+    var listEl = document.getElementById('subList');
+    var emptyEl = document.getElementById('emptyMsg');
+    listEl.innerHTML = '';
+    if (subs.length === 0) {
+      emptyEl.style.display = 'block';
+    } else {
+      emptyEl.style.display = 'none';
+      var sorted = subs.slice().sort(function (a, b) { return daysUntil(a.date) - daysUntil(b.date); });
+      sorted.forEach(function (s) {
+        var row = document.createElement('div'); row.className = 'sub-item';
+        if (confirmingId === s.id) {
+          row.innerHTML =
+            '<div style="flex:1; min-width:0;"><p class="sub-name" style="color:var(--red-600);">\'' + escapeHtml(s.name) + '\' 삭제할까요?</p></div>' +
+            '<div class="sub-right" style="gap:6px;">' +
+              '<button class="confirm-del-btn" data-id="' + s.id + '" style="border:none; background:var(--red-50); color:var(--red-600); font-size:12.5px; font-weight:500; padding:6px 10px; border-radius:8px;">삭제</button>' +
+              '<button class="cancel-del-btn" style="border:none; background:none; color:var(--text-muted); font-size:12.5px; padding:6px 8px;">취소</button>' +
+            '</div>';
+          listEl.appendChild(row);
+          return;
+        }
+        var cat = CATS[s.category] || CATS.etc;
+        var d = daysUntil(s.date);
+        var soon = d <= 3;
+        var metaText = s.trial
+          ? '무료체험 · ' + (d < 0 ? '체험 종료' : d + '일 후 전환')
+          : (d < 0 ? '결제일 지남' : d + '일 후 결제');
+        row.innerHTML =
+          '<div class="sub-left">' +
+            '<div class="badge" style="background:' + cat.bg + '; color:' + cat.text + ';">' + escapeHtml(s.name.slice(0,1)) + '</div>' +
+            '<div style="min-width:0;"><p class="sub-name">' + escapeHtml(s.name) + '</p><p class="sub-meta' + (soon ? ' soon' : '') + '">' + metaText + '</p></div>' +
+          '</div>' +
+          '<div class="sub-right"><span class="sub-price">' + fmtWon(s.price) + '</span>' +
+          '<button class="del-btn" data-id="' + s.id + '" aria-label="삭제"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg></button></div>';
+        listEl.appendChild(row);
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('.del-btn'), function (btn) {
+        btn.addEventListener('click', function () {
+          confirmingId = btn.getAttribute('data-id');
+          renderHome();
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('.confirm-del-btn'), function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-id');
+          subs = subs.filter(function (s) { return s.id !== id; });
+          confirmingId = null;
+          saveSubs(subs); renderAll();
+        });
+      });
+      Array.prototype.forEach.call(listEl.querySelectorAll('.cancel-del-btn'), function (btn) {
+        btn.addEventListener('click', function () {
+          confirmingId = null;
+          renderHome();
+        });
+      });
+    }
+  }
+
+  function renderAnalytics() {
+    var total = subs.reduce(function (s, x) { return s + (Number(x.price) || 0); }, 0);
+    document.getElementById('anTotal').textContent = fmtWon(total);
+    document.getElementById('anYear').textContent = fmtWon(total * 12);
+    document.getElementById('anAvg').textContent = subs.length ? fmtWon(total / subs.length) : '0원';
+    var maxSub = subs.slice().sort(function (a,b) { return (b.price||0) - (a.price||0); })[0];
+    document.getElementById('anMax').textContent = maxSub ? maxSub.name : '-';
+
+    var catTotals = {}; Object.keys(CATS).forEach(function (k) { catTotals[k] = 0; });
+    subs.forEach(function (s) { var c = CATS[s.category] ? s.category : 'etc'; catTotals[c] += Number(s.price) || 0; });
+
+    var el = document.getElementById('catBreakdown');
+    el.innerHTML = '';
+    if (total === 0) {
+      el.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">등록된 구독이 없어 분석할 데이터가 없습니다.</p>';
+      return;
+    }
+    Object.keys(CATS).forEach(function (k) {
+      if (catTotals[k] <= 0) return;
+      var pct = Math.round((catTotals[k] / total) * 100);
+      var row = document.createElement('div'); row.className = 'cat-row';
+      row.innerHTML = '<div class="top"><span>' + CATS[k].label + '</span><span>' + fmtWon(catTotals[k]) + ' · ' + pct + '%</span></div>' +
+        '<div class="track"><div class="fill" style="width:' + pct + '%; background:' + CATS[k].color + ';"></div></div>';
+      el.appendChild(row);
+    });
+  }
+
+  function renderAll() { renderHome(); renderAnalytics(); }
+
+  // 탭 전환
+  var tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-screen');
+      tabBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
+      document.getElementById('screen-' + target).classList.add('active');
+      document.getElementById('topbarTitle').textContent = TITLES[target];
+      window.scrollTo(0, 0);
+    });
+  });
+
+  function guessCategory(name) {
+    var n = name.toLowerCase();
+    if (/넷플릭스|유튜브|디즈니|왓챠|웨이브|티빙|netflix|youtube|disney|watcha|wavve|tving/.test(n)) return 'ott';
+    if (/멜론|스포티파이|지니|벅스|플로|애플뮤직|melon|spotify|genie|bugs|flo|apple ?music/.test(n)) return 'music';
+    if (/노션|구글원|드라이브|클라우드|notion|google one|drive|icloud|office|adobe/.test(n)) return 'productivity';
+    return 'etc';
+  }
+
+  function parseSimpleLines(text) {
+    var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var todayStr = new Date().toISOString().slice(0, 10);
+    var results = [];
+    lines.forEach(function (line) {
+      var priceMatch = line.match(/([\d,]{2,})\s*원?/);
+      if (!priceMatch) return;
+      var price = parseInt(priceMatch[1].replace(/,/g, ''), 10);
+      if (!price || price <= 0) return;
+      var name = (line.slice(0, priceMatch.index) + line.slice(priceMatch.index + priceMatch[0].length))
+        .replace(/[·|\-–—:,]+$/g, '')
+        .replace(/^[·|\-–—:,]+/g, '')
+        .trim();
+      if (!name) return;
+      results.push({
+        id: 's' + Date.now() + Math.floor(Math.random() * 10000),
+        name: name,
+        price: price,
+        category: guessCategory(name),
+        date: todayStr,
+        trial: false
+      });
+    });
+    return results;
+  }
+
+  function toSub(it) {
+    var todayStr = new Date().toISOString().slice(0, 10);
+    return {
+      id: 's' + Date.now() + Math.floor(Math.random() * 100000),
+      name: it.name, price: it.price, category: guessCategory(it.name),
+      date: it.date || todayStr, trial: !!it.trial
+    };
+  }
+  function parseImportText(text) {
+    var found = window.SubParser ? window.SubParser.parse(text, new Date()).map(toSub) : [];
+    return found.length ? found : parseSimpleLines(text);
+  }
+
+  document.getElementById('importBtn').addEventListener('click', function () {
+    var text = document.getElementById('importText').value;
+    var found = parseImportText(text);
+    var resultEl = document.getElementById('importResult');
+    if (found.length === 0) {
+      resultEl.style.color = 'var(--red-600)';
+      resultEl.textContent = '인식할 수 있는 구독 정보를 찾지 못했어요. "이름 + 금액" 형태로 한 줄씩 붙여넣어 보세요.';
+      resultEl.style.display = 'block';
+      return;
+    }
+    subs = subs.concat(found);
+    saveSubs(subs);
+    renderAll();
+    resultEl.style.color = 'var(--green-600)';
+    resultEl.textContent = found.length + '개 구독을 가져왔습니다. 홈 탭에서 결제일을 확인해 주세요.';
+    resultEl.style.display = 'block';
+    document.getElementById('importText').value = '';
+  });
+
+  // ===== 스크린샷 OCR (이 기기 안에서 실행, 사진은 밖으로 나가지 않음) =====
+  var screenshotInput = document.getElementById('screenshotInput');
+  var shotBtn = document.getElementById('shotBtn');
+  var shotStatus = document.getElementById('shotStatus');
+  var shotPreview = document.getElementById('shotPreview');
+  var shotProgress = document.getElementById('shotProgress');
+  var shotBar = document.getElementById('shotBar');
+  var shotProgressText = document.getElementById('shotProgressText');
+  var reviewBox = document.getElementById('reviewBox');
+  var reviewList = document.getElementById('reviewList');
+
+  var ocrWorker = null;
+  var ocrBusy = false;
+  var stageBase = 0, stageSpan = 0, stageText = '';
+
+  function absUrl(p) { return new URL(p, location.href).href; }
+
+  function setShotStatus(msg, kind) {
+    shotStatus.textContent = msg;
+    shotStatus.style.color = kind === 'error' ? 'var(--red-600)' : (kind === 'ok' ? 'var(--green-600)' : 'var(--text-muted)');
+    shotStatus.style.display = msg ? 'block' : 'none';
+  }
+  function setProgress(frac, text) {
+    shotProgress.hidden = false;
+    shotBar.style.width = Math.max(2, Math.min(100, Math.round(frac * 100))) + '%';
+    if (text) shotProgressText.textContent = text;
+  }
+  function hideProgress() { shotProgress.hidden = true; shotBar.style.width = '0%'; }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('script_load')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function getWorker() {
+    if (ocrWorker) return Promise.resolve(ocrWorker);
+    setProgress(0.03, '인식 엔진을 준비하는 중이에요. 처음 한 번만 오래 걸려요.');
+    var ready = window.Tesseract ? Promise.resolve() : loadScript('vendor/tesseract.min.js');
+    return ready.then(function () {
+      return window.Tesseract.createWorker(['kor', 'eng'], 1, {
+        workerPath: absUrl('vendor/worker.min.js'),
+        corePath: absUrl('vendor/core'),
+        langPath: absUrl('vendor/lang'),
+        gzip: true,
+        logger: function (m) {
+          if (!m || typeof m.progress !== 'number') return;
+          if (m.status === 'recognizing text') setProgress(stageBase + stageSpan * m.progress, stageText);
+        }
+      });
+    }).then(function (w) { ocrWorker = w; return w; });
+  }
+
+  // 이미지를 흑백으로 만들고, 어두운 화면(다크 모드)은 색을 뒤집어 읽기 쉽게 만든다.
+  function preprocess(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1600, Math.max(1080, w)) / w;
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var c = document.createElement('canvas');
+        c.width = cw; c.height = ch;
+        var ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, cw, ch);
+        var d = ctx.getImageData(0, 0, cw, ch), px = d.data, sum = 0, i;
+        for (i = 0; i < px.length; i += 4) {
+          var g = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+          px[i] = px[i + 1] = px[i + 2] = g;
+          sum += g;
+        }
+        if (sum / (cw * ch) < 110) {
+          for (i = 0; i < px.length; i += 4) { px[i] = px[i + 1] = px[i + 2] = 255 - px[i]; }
+        }
+        ctx.putImageData(d, 0, 0);
+        URL.revokeObjectURL(url);
+        resolve(c);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image_load')); };
+      img.src = url;
+    });
+  }
+
+  function flatLines(data) {
+    var out = [];
+    (data.blocks || []).forEach(function (b) {
+      (b.paragraphs || []).forEach(function (p) {
+        (p.lines || []).forEach(function (l) { out.push(l); });
+      });
+    });
+    return out;
+  }
+
+  // 이름이 사전에 없는 항목은 요금 줄 바로 위 한 줄만 다시 읽어 정확도를 높인다.
+  function fixNames(worker, canvas, lines, items) {
+    var used = {};
+    var chain = Promise.resolve();
+    items.forEach(function (it) {
+      chain = chain.then(function () {
+        if (SubParser.canonical(it.name)) { it.uncertain = false; return; }
+        var digits = String(it.price), pl = null, idx = -1, i;
+        if (!it.yearly) {
+          for (i = 0; i < lines.length; i++) {
+            if (used[i] || !lines[i].bbox) continue;
+            if (lines[i].text.replace(/[,.\s]/g, '').indexOf(digits) !== -1) { pl = lines[i]; idx = i; break; }
+          }
+        }
+        if (!pl) { it.uncertain = true; return; }
+        used[idx] = true;
+        var h = pl.bbox.y1 - pl.bbox.y0;
+        var top = Math.max(0, pl.bbox.y0 - Math.round(h * 2.1));
+        var height = pl.bbox.y0 - top - 2;
+        var left = Math.max(0, pl.bbox.x0 - 15);
+        if (height < 12) { it.uncertain = true; return; }
+        var rect = { left: left, top: top, width: Math.min(canvas.width - left, 900), height: height };
+        return worker.setParameters({ tessedit_pageseg_mode: '7' }).then(function () {
+          return worker.recognize(canvas, { rectangle: rect });
+        }).then(function (rr) {
+          var t = ((rr.data.text || '').trim().split('\n')[0]) || '';
+          if (rr.data.confidence >= 60 && SubParser.isNameLine(t)) {
+            it.name = SubParser.canonical(t) || SubParser.cleanName(t);
+            it.uncertain = !SubParser.canonical(it.name) && rr.data.confidence < 75;
+          } else {
+            it.uncertain = true;
+          }
+        }).catch(function () { it.uncertain = true; });
+      });
+    });
+    return chain;
+  }
+
+  function readImage(worker, canvas, index, total) {
+    stageBase = (index / total) * 0.9 + 0.08;
+    stageSpan = (1 / total) * 0.9;
+    stageText = '스크린샷 ' + (index + 1) + '/' + total + ' 글자를 읽는 중이에요...';
+    setProgress(stageBase, stageText);
+    return worker.setParameters({ tessedit_pageseg_mode: '3' }).then(function () {
+      return worker.recognize(canvas, {}, { blocks: true });
+    }).then(function (r) {
+      var items = SubParser.parse(r.data.text, new Date());
+      return fixNames(worker, canvas, flatLines(r.data), items).then(function () {
+        return { text: r.data.text, items: items };
+      });
+    });
+  }
+
+  function nsKey(it) { return String(it.name).toLowerCase().replace(/\s+/g, '') + '|' + it.price; }
+
+  function runOcr(files) {
+    if (ocrBusy) return;
+    ocrBusy = true;
+    shotBtn.disabled = true;
+    reviewBox.hidden = true;
+    setShotStatus('', null);
+    var allItems = [], rawText = [];
+    getWorker().then(function (worker) {
+      var chain = Promise.resolve();
+      files.forEach(function (f, i) {
+        chain = chain.then(function () { return preprocess(f); }).then(function (canvas) {
+          return readImage(worker, canvas, i, files.length);
+        }).then(function (res) {
+          rawText.push(res.text);
+          res.items.forEach(function (it) { allItems.push(it); });
+        });
+      });
+      return chain;
+    }).then(function () {
+      var seen = {}, merged = [];
+      allItems.forEach(function (it) {
+        var k = nsKey(it);
+        if (seen[k]) return;
+        seen[k] = true;
+        merged.push(it);
+      });
+      hideProgress();
+      document.getElementById('ocrRaw').textContent = rawText.join('\n-----\n');
+      if (merged.length === 0) {
+        setShotStatus('구독 정보를 찾지 못했어요. 글자가 또렷하게 보이는 화면을 캡처해서 다시 시도하거나, 아래 붙여넣기와 직접 입력을 이용해 주세요.', 'error');
+        document.getElementById('reviewBox').hidden = false;
+        reviewList.innerHTML = '';
+        document.getElementById('reviewAddBtn').hidden = true;
+        document.getElementById('reviewCount').textContent = '';
+        return;
+      }
+      showReview(merged);
+    }).catch(function (e) {
+      hideProgress();
+      var msg = '인식 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
+      if (e && e.message === 'image_load') msg = '이미지를 열 수 없었어요. 다른 스크린샷으로 시도해 주세요.';
+      else if (e && e.message === 'script_load') msg = '인식 엔진을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.';
+      setShotStatus(msg, 'error');
+    }).then(function () {
+      ocrBusy = false;
+      shotBtn.disabled = !(screenshotInput.files && screenshotInput.files.length);
+    });
+  }
+
+  function showReview(items) {
+    reviewList.innerHTML = '';
+    document.getElementById('reviewAddBtn').hidden = false;
+    items.forEach(function (it) {
+      var row = document.createElement('div');
+      row.className = 'review-row' + (it.uncertain ? ' uncertain' : '');
+      row.innerHTML =
+        '<label class="rv-check"><input type="checkbox" class="rv-on" checked aria-label="등록"></label>' +
+        '<div class="rv-fields">' +
+          '<input type="text" class="rv-name" aria-label="서비스 이름">' +
+          '<div class="rv-sub">' +
+            '<input type="number" class="rv-price" inputmode="numeric" min="0" step="10" aria-label="월 요금(원)">' +
+            '<input type="date" class="rv-date" aria-label="다음 결제일">' +
+          '</div>' +
+          '<label class="rv-opts"><input type="checkbox" class="rv-trial"> 무료체험 중</label>' +
+          (it.uncertain ? '<p class="rv-warn">이름을 확인해 주세요.</p>' : '') +
+          (it.date ? '' : '<p class="rv-warn">결제일을 못 읽었어요. 비워 두면 오늘 날짜로 등록돼요.</p>') +
+        '</div>';
+      row.querySelector('.rv-name').value = it.name;
+      row.querySelector('.rv-price').value = it.price;
+      row.querySelector('.rv-date').value = it.date || '';
+      row.querySelector('.rv-trial').checked = !!it.trial;
+      reviewList.appendChild(row);
+    });
+    document.getElementById('reviewCount').textContent = '(' + items.length + '개)';
+    reviewBox.hidden = false;
+    setShotStatus('읽기가 끝났어요. 내용을 확인하고 등록해 주세요.', 'ok');
+    reviewBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function clearSelection() {
+    screenshotInput.value = '';
+    shotPreview.innerHTML = '';
+    shotPreview.style.display = 'none';
+    shotBtn.disabled = true;
+    shotBtn.textContent = '스크린샷에서 자동으로 인식하기';
+  }
+
+  document.getElementById('reviewAddBtn').addEventListener('click', function () {
+    var todayStr = new Date().toISOString().slice(0, 10);
+    var rows = reviewList.querySelectorAll('.review-row');
+    var added = 0, skipped = 0;
+    Array.prototype.forEach.call(rows, function (row) {
+      if (!row.querySelector('.rv-on').checked) return;
+      var name = row.querySelector('.rv-name').value.trim();
+      var price = Number(row.querySelector('.rv-price').value);
+      if (!name || !price || price <= 0) { skipped++; return; }
+      subs.push({
+        id: 's' + Date.now() + Math.floor(Math.random() * 100000),
+        name: name,
+        price: Math.round(price),
+        category: guessCategory(name),
+        date: row.querySelector('.rv-date').value || todayStr,
+        trial: row.querySelector('.rv-trial').checked
+      });
+      added++;
+    });
+    if (added === 0) {
+      setShotStatus(skipped ? '이름과 금액이 비어 있는 항목이 있어요. 채워 주세요.' : '등록할 항목을 선택해 주세요.', 'error');
+      return;
+    }
+    if (normalizeSubs(subs)) { /* 지난 결제일은 다음 달로 넘김 */ }
+    saveSubs(subs);
+    renderAll();
+    reviewBox.hidden = true;
+    reviewList.innerHTML = '';
+    clearSelection();
+    setShotStatus(added + '개 구독을 등록했어요.' + (skipped ? ' (' + skipped + '개는 빈칸이 있어 건너뛰었어요.)' : ''), 'ok');
+    document.querySelector('.tab-btn[data-screen="home"]').click();
+  });
+
+  document.getElementById('reviewCancelBtn').addEventListener('click', function () {
+    reviewBox.hidden = true;
+    reviewList.innerHTML = '';
+    setShotStatus('', null);
+  });
+
+  screenshotInput.addEventListener('change', function () {
+    var files = screenshotInput.files ? Array.prototype.slice.call(screenshotInput.files) : [];
+    shotPreview.innerHTML = '';
+    if (files.length === 0) {
+      shotBtn.disabled = true;
+      shotPreview.style.display = 'none';
+      return;
+    }
+    files.forEach(function (f) {
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      img.alt = '선택한 스크린샷 미리보기';
+      shotPreview.appendChild(img);
+    });
+    shotPreview.style.display = 'flex';
+    shotBtn.disabled = false;
+    shotBtn.textContent = files.length > 1
+      ? '스크린샷 ' + files.length + '장에서 자동으로 인식하기'
+      : '스크린샷에서 자동으로 인식하기';
+    setShotStatus('', null);
+  });
+
+  shotBtn.addEventListener('click', function () {
+    var files = screenshotInput.files ? Array.prototype.slice.call(screenshotInput.files) : [];
+    if (files.length === 0) return;
+    runOcr(files);
+  });
+
+  // 인기 서비스 프리셋
+  var selectedPreset = null;
+  var presetGrid = document.getElementById('presetGrid');
+  PRESETS.forEach(function (p, idx) {
+    var cat = CATS[p.category] || CATS.etc;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'preset-btn';
+    btn.dataset.idx = idx;
+    btn.innerHTML =
+      '<div class="p-badge" style="background:' + cat.bg + '; color:' + cat.text + ';">' + escapeHtml(p.initial) + '</div>' +
+      '<div class="p-name">' + escapeHtml(p.name) + '</div>';
+    btn.addEventListener('click', function () {
+      document.getElementById('fName').value = p.name;
+      document.getElementById('fPrice').value = p.price;
+      document.getElementById('fCategory').value = p.category;
+      Array.prototype.forEach.call(presetGrid.querySelectorAll('.preset-btn'), function (b) { b.classList.remove('selected'); });
+      btn.classList.add('selected');
+      document.getElementById('fDate').focus();
+    });
+    presetGrid.appendChild(btn);
+  });
+
+  // 추가 폼
+  document.getElementById('submitBtn').addEventListener('click', function () {
+    var name = document.getElementById('fName').value.trim();
+    var price = document.getElementById('fPrice').value;
+    var category = document.getElementById('fCategory').value;
+    var date = document.getElementById('fDate').value;
+    var trial = document.getElementById('fTrial').checked;
+    var errEl = document.getElementById('formErr');
+
+    if (!name || !price || Number(price) < 0 || !date) {
+      errEl.textContent = '서비스 이름, 요금, 결제일을 모두 입력해 주세요.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+
+    subs.push({ id: 's' + Date.now(), name: name, price: Number(price), category: category, date: date, trial: trial });
+    saveSubs(subs);
+    renderAll();
+
+    document.getElementById('fName').value = '';
+    document.getElementById('fPrice').value = '';
+    document.getElementById('fDate').value = '';
+    document.getElementById('fTrial').checked = false;
+    Array.prototype.forEach.call(presetGrid.querySelectorAll('.preset-btn'), function (b) { b.classList.remove('selected'); });
+
+    // 홈 탭으로 이동
+    document.querySelector('.tab-btn[data-screen="home"]').click();
+  });
+
+  // 초기화
+  document.getElementById('resetBtn').addEventListener('click', function () {
+    subs = [];
+    saveSubs(subs);
+    renderAll();
+  });
+
+  if (normalizeSubs(subs)) {
+    saveSubs(subs);
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>
