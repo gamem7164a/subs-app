@@ -1,1 +1,32 @@
-{"name": "Build APK", "on": {"push": null, "workflow_dispatch": null}, "jobs": {"build": {"runs-on": "ubuntu-latest", "steps": [{"uses": "actions/checkout@v4"}, {"uses": "actions/setup-node@v4", "with": {"node-version": 20}}, {"uses": "actions/setup-java@v4", "with": {"distribution": "temurin", "java-version": 17}}, {"run": "npm install"}, {"run": "npx cap add android"}, {"run": "npx cap sync android"}, {"name": "Build debug APK", "working-directory": "android", "run": "./gradlew assembleDebug --no-daemon"}, {"uses": "actions/upload-artifact@v4", "with": {"name": "subs-app-apk", "path": "android/app/build/outputs/apk/debug/app-debug.apk"}}]}}}
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm install
+      - run: npx cap add android
+      - name: Add Korean OCR plugin
+        run: |
+          mkdir -p android/app/src/main/java/com/mysubs/app
+          cp native/*.java android/app/src/main/java/com/mysubs/app/
+          sed -i '/^dependencies {/a\    implementation "com.google.mlkit:text-recognition-korean:16.0.1"' android/app/build.gradle
+          grep -n "mlkit" android/app/build.gradle
+      - run: npx cap sync android
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subs-app-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
