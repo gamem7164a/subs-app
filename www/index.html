@@ -643,6 +643,43 @@
   }
 
   var engineErr = '', lastLog = '';
+  // 언어 데이터를 앱이 직접 읽어 풀고, 엔진의 저장소(IndexedDB)에 미리 넣어 둔다.
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('keyval-store');
+      r.onupgradeneeded = function () { r.result.createObjectStore('keyval'); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbReq(db, mode, fn) {
+    return new Promise(function (res, rej) {
+      var q = fn(db.transaction('keyval', mode).objectStore('keyval'));
+      q.onsuccess = function () { res(q.result); };
+      q.onerror = function () { rej(q.error); };
+    });
+  }
+  function seedOne(db, lang, base) {
+    var key = './' + lang + '.traineddata';
+    return idbReq(db, 'readonly', function (st) { return st.get(key); }).then(function (v) {
+      if (v) return;
+      setProgress(base, '언어 데이터 읽는 중: ' + lang);
+      return fetch('vendor/lang/' + lang + '.traineddata.gz').then(function (r) {
+        if (!r.ok) throw new Error('lang_http_' + r.status);
+        return r.arrayBuffer();
+      }).then(function (gz) {
+        setProgress(base + 0.04, '언어 데이터 푸는 중: ' + lang + ' (' + Math.round(gz.byteLength / 1024) + 'KB)');
+        return new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      }).then(function (buf) {
+        return idbReq(db, 'readwrite', function (st) { return st.put(new Uint8Array(buf), key); });
+      });
+    });
+  }
+  function seedLang() {
+    return idbOpen().then(function (db) {
+      return seedOne(db, 'kor', 0.04).then(function () { return seedOne(db, 'eng', 0.1); });
+    }).catch(function (e) { throw new Error('언어데이터: ' + (e && e.message || e)); });
+  }
   function getWorker() {
     if (ocrWorker) return Promise.resolve(ocrWorker);
     setProgress(0.03, '인식 엔진을 준비하는 중이에요. 처음 한 번만 오래 걸려요.');
@@ -650,12 +687,13 @@
       if (!ocrWorker) setShotStatus('엔진 준비가 90초 넘게 걸려요. 마지막 상태: ' + (engineErr || lastLog || '응답 없음'), 'error');
     }, 90000);
     var ready = window.Tesseract ? Promise.resolve() : loadScript('vendor/tesseract.min.js');
-    return ready.then(function () {
+    return ready.then(seedLang).then(function () {
       return window.Tesseract.createWorker(['kor', 'eng'], 1, {
         workerPath: absUrl('vendor/worker.min.js'),
         corePath: absUrl('vendor/core'),
         langPath: absUrl('vendor/lang'),
         gzip: true,
+        cacheMethod: 'readOnly',
         errorHandler: function (e) { engineErr = String(e && e.message || e); },
         logger: function (m) {
           if (!m || typeof m.progress !== 'number') return;
