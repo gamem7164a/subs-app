@@ -681,6 +681,7 @@
     }).catch(function (e) { throw new Error('언어데이터: ' + (e && e.message || e)); });
   }
   function getWorker() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.KoreanOcr) return Promise.resolve({ native: true });
     if (ocrWorker) return Promise.resolve(ocrWorker);
     setProgress(0.03, '인식 엔진을 준비하는 중이에요. 처음 한 번만 오래 걸려요.');
     var wd = setTimeout(function () {
@@ -783,11 +784,33 @@
     return chain;
   }
 
+  function rowsToText(lines) {
+    var L = lines.slice().sort(function (a, b) { return (a.top + a.bottom) - (b.top + b.bottom); });
+    var rows = [];
+    L.forEach(function (l) {
+      var cy = (l.top + l.bottom) / 2, h = l.bottom - l.top;
+      var r = rows[rows.length - 1];
+      if (r && Math.abs(cy - r.cy) < 0.6 * Math.max(h, r.h)) { r.items.push(l); r.cy = (r.cy + cy) / 2; }
+      else rows.push({ cy: cy, h: h, items: [l] });
+    });
+    return rows.map(function (r) {
+      return r.items.sort(function (a, b) { return a.left - b.left; }).map(function (x) { return x.text; }).join(' ');
+    }).join('\n');
+  }
+
   function readImage(worker, canvas, index, total) {
     stageBase = (index / total) * 0.9 + 0.08;
     stageSpan = (1 / total) * 0.9;
     stageText = '스크린샷 ' + (index + 1) + '/' + total + ' 글자를 읽는 중이에요...';
     setProgress(stageBase, stageText);
+    if (worker && worker.native) {
+      return window.Capacitor.Plugins.KoreanOcr.recognize({ base64: canvas.toDataURL('image/jpeg', 0.92) }).then(function (r) {
+        var text = rowsToText(r.lines || []);
+        var items = SubParser.parse(text, new Date());
+        items.forEach(function (it) { it.uncertain = !SubParser.canonical(it.name); });
+        return { text: text, items: items };
+      });
+    }
     return worker.setParameters({ tessedit_pageseg_mode: '3' }).then(function () {
       return worker.recognize(canvas, {}, { blocks: true });
     }).then(function (r) {
