@@ -29,7 +29,11 @@
     ['Adobe', ['adobe', '어도비']],
     ['밀리의서재', ['밀리의서재', '밀리의서']],
     ['리디', ['리디셀렉트', '리디']],
-    ['네이버 플러스 멤버십', ['네이버플러스', 'naverplus']]
+    ['네이버 플러스 멤버십', ['네이버플러스', 'naverplus']],
+    ['Instagram', ['instagram']],
+    ['Discord', ['discord']],
+    ['Surfshark', ['surfshark']],
+    ['Duolingo', ['duolingo']]
   ];
 
   var NOT_NAME = [
@@ -49,6 +53,9 @@
   var PRICE_PATTERNS = [
     /(?:₩|￦|\\|W|KRW|#)\s*(\d{1,3}(?:[,.\s]\d{3})+|\d{3,6})(?!\d)/i,
     /(?<![\d,.])(\d{1,3}(?:[,.\s]\d{3})+|\d{3,6})\s*원/,
+    // 통화 기호를 못 읽었어도 '결제 예정' 바로 앞의 숫자는 금액으로 본다.
+    /(?<![\d,.])(\d{1,3}(?:,\d{3})+|\d{3,6})\s*(?:에\s*)?결제\s*예정/,
+    // 기호 없이 쉼표 숫자만 있는 경우는 결제 문맥이 있을 때만(예: 'Over 4,500 VPN servers'를 거른다).
     /(?<![\d,.])(\d{1,3}(?:,\d{3})+)(?![\d,])/
   ];
 
@@ -56,6 +63,7 @@
     for (var i = 0; i < PRICE_PATTERNS.length; i++) {
       var m = PRICE_PATTERNS[i].exec(line);
       if (!m) continue;
+      if (i === 3 && !/결제|예정|원|월|month|mo\b/i.test(line)) continue;
       var value = parseInt(m[1].replace(/[,.\s]/g, ''), 10);
       if (!value) continue;
       var after = line.slice(m.index + m[0].length, m.index + m[0].length + 8);
@@ -125,6 +133,12 @@
     return s;
   }
 
+  // 'Spotify: 음악과 팟캐스트', 'Discord - Talk, Play' 처럼 뒤에 붙은 설명은 뗀다.
+  function shortName(name) {
+    var first = name.split(/\s*[:：]\s*|\s+[-–]\s+/)[0].trim();
+    return first.length >= 2 ? first : name;
+  }
+
   function isNameLine(raw) {
     var t = cleanName(raw);
     if (t.length < 2 || t.length > 40) return false;
@@ -146,7 +160,15 @@
       // 이름: 같은 줄 앞부분, 없으면 위쪽 줄에서 가장 가까운 이름 같은 줄
       var name = null;
       var prefix = lines[i].slice(0, pm.index);
-      if (isNameLine(prefix)) name = canonical(prefix) || cleanName(prefix);
+      // 구글 플레이 구독 화면은 '앱 이름 / 상품명 / 다음 결제: ... 결제 예정' 순서라서 두 줄 위가 앱 이름이다.
+      if (/다음\s*결제|결제\s*예정/.test(lines[i])) {
+        var gp = [i - 2, i - 1];
+        for (var g = 0; !name && g < gp.length; g++) {
+          var gl = lines[gp[g]];
+          if (gp[g] >= 0 && !findPrice(gl) && isNameLine(gl)) name = canonical(gl) || shortName(cleanName(gl));
+        }
+      }
+      if (!name && isNameLine(prefix)) name = canonical(prefix) || cleanName(prefix);
       for (var j = i - 1; !name && j >= Math.max(0, i - 3); j--) {
         if (findPrice(lines[j])) break;
         if (isNameLine(lines[j])) name = canonical(lines[j]) || cleanName(lines[j]);
